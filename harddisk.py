@@ -3,7 +3,7 @@
 #ToDo
 #record last1 and last2 in the trajectory file.
 #物理化学5でのデモのために、運動エネルギー分布を表示する。
-__version__ = 0.1
+__version__ = "0.1"
 
 from math import *
 import random as ra
@@ -11,7 +11,7 @@ import sys
 from nodebox_wrapper3 import *
 import argparse  as ap
 import time
-
+from histogram import Hist
 
 #General list serializer
 def serialize(x):
@@ -32,34 +32,6 @@ def unserialize(s):
 
 
 
-class Hist:
-    def __init__(self,vmin,vmax,interval):
-        self.vmin = vmin
-        self.vmax = vmax
-        self.interval = interval
-        self.Ndata = 0
-        self.Nbin = int((vmax-vmin)/interval)
-        self.histo = [0.0 for i in range(self.Nbin)]
-    def accum(self,value,weight=1):
-        if self.vmin <= value < self.vmax:
-            bin = int((value - self.vmin) / self.interval + 0.5)
-            self.histo[bin] += weight
-        self.Ndata += weight
-    def draw(self,x,y,width,height,vertical=False):
-        nofill()
-        stroke(0)
-        if self.Ndata == 0:
-            return
-        if vertical:
-            dy = height / self.Nbin
-            for i in range(self.Nbin):
-                dx = int(width*self.histo[i]/self.Ndata/self.interval+0.5)
-                rect(x-dx,y-i*dy,dx,dy)
-        else:
-            dx = width / self.Nbin
-            for i in range(self.Nbin):
-                dy = int(height*self.histo[i]/self.Ndata/self.interval+0.5)
-                rect(i*dx+x,y-dy,dx,dy)
         
 
 class Wall:
@@ -212,7 +184,10 @@ class HardDisk:
             vel = sqrt(vel)
             sat = (pos[2] / cell[2])*0.5+0.5
             hue = 0.666 - 0.3 * vel / avgvel
-            a = 0.5 / vel
+            if vel > 0:
+                a = 0.5 / vel
+            else:
+                a = 0.5
             b = a + 1.0
             fill(hue,1.0,sat, 0.8)
             if self.vel[2] >= 0.0:
@@ -411,6 +386,11 @@ class System:
             pressure = sumpulse / bunbo
             self.logfile.write("%s %s %s %s %s\n" %
                                (self.step, kT, pressure*self.volume/(N * kT), kin, ncollision))
+        #histogram
+        for b in self.balls:
+            self.histx.accum(b.vel[0],1.0)
+            if len(b.vel)>1:
+                self.histy.accum(b.vel[1],1.0)
         self.step += 1
     
     def draw(self):
@@ -509,7 +489,6 @@ def getoptions():
                         help='Step interval.')
     parser.add_argument('--temp',
                         '-t',
-                        nargs = 1,
                         type=float,
                         dest='temp',
                         metavar="1.0",

@@ -2,12 +2,15 @@
 
 # lj2.py + numpy
 
+__version__="0.1"
+
 from math import *
 import random as ra
 import sys
-import getopt
+import argparse  as ap
 from nodebox_wrapper3 import *
 import numpy as np
+from histogram import Hist
 
 #General list serializer
 def serialize(x):
@@ -86,10 +89,11 @@ class Particles:
         if self.dim < 3:
             for p,v in zip(pos,self.vel):
                 oval((p[0]-0.5)*gc.zoom,(p[1]-0.5)*gc.zoom, gc.zoom,gc.zoom)
-                line(p[0]*gc.zoom,p[1]*gc.zoom,(p[0]+self.v[0])*gc.zoom,(p[1]+self.v[1])*gc.zoom)
+                line(p[0]*gc.zoom,p[1]*gc.zoom,(p[0]+v[0])*gc.zoom,(p[1]+v[1])*gc.zoom)
         else:
-            # must be sorted!
-            for p,v in zip(pos,self.vel):
+            for i in sorted(range(pos.shape[0]), key=lambda x:pos[x,2]):
+                p = pos[i]
+                v = self.vel[i]
                 speed = np.linalg.norm(v)
                 sat = (p[2] / cell[2])*0.5+0.5
                 hue = 0.666 - 0.3 * speed / avgvel
@@ -125,9 +129,17 @@ class Particles:
 
 #System of particles ###################################################
 class System:
-    def __init__(self,cell=None,nballs=10,step=0,gc=None,
-                 input=None,logfile=sys.stdout,velfile=None,velint=0,
-                 kT=None ):
+    def __init__(self,
+                 cell=None,
+                 nballs=10,
+                 step=0,
+                 gc=None,
+                 input=None,
+                 logfile=sys.stdout,
+                 velfile=None,
+                 velint=0,
+                 kT=None,
+                 hist=False):
         self.cell = cell
         if input is not None:
             self.load(input)
@@ -143,6 +155,9 @@ class System:
         self.velfile = velfile
         self.velinterval = velint
         self.kT = kT
+        self.hist  = hist
+        self.histx = Hist(-5,+5,0.05)
+        self.histy = Hist(-5,+5,0.05)
         
     def lattice(self,nballs):
         dim = self.cell.shape[0]
@@ -235,7 +250,8 @@ class System:
         #Progress Momenta (half)
         self.balls.accel(dt/2.0)
         #temperature scaling
-        if self.kT is not None:
+        #if self.kT is not None:
+        if False:
             kin = self.balls.kinetic()
             dof = self.balls.N * self.cell.shape[0]
             factor =   (self.kT * dof / 2.0)  / kin
@@ -252,6 +268,11 @@ class System:
         if self.velfile is not None and self.step%self.velinterval == 0:
             for i in range(0,N):
                 self.velfile.write("%s\n" % sqrt(2.0*self.balls[i].kinetic()))
+        #histogram
+        for v in self.balls.vel:
+            self.histx.accum(v[0],1.0)
+            if len(v.shape)>1:
+                self.histy.accum(v[1],1.0)
         self.step += 1
     
     def draw(self):
@@ -264,6 +285,18 @@ class System:
                 self.balls.draw(self.cell,self.gc,avgvel)
             else:
                 self.balls.draw(self.cell,self.gc,0.0)
+            if dim>1:
+                canvasx = self.cell[0]*self.gc.zoom
+                canvasy = self.cell[1]*self.gc.zoom
+                if self.hist:
+                    self.histx.draw(0,canvasy,canvasx,canvasy/2)
+                    self.histx.draw(canvasx,canvasy,canvasx/2,canvasy,vertical=True)
+            else:
+                canvasx = self.cell[0]*self.gc.zoom
+                canvasy = self.gc.zoom
+                if self.hist:
+                    self.histx.draw(0,canvasy,canvasx,canvasy/2)
+#                    self.histx.draw(canvasx,canvasy,canvasx/2,canvasy,vertical=True)
 
     def load(self,file):
         self.balls = []
@@ -288,105 +321,104 @@ class System:
         file.write("%s\n" % self)
 
 
+
+    
+#Commandline parser #########################################################
+def getoptions():
+    parser = ap.ArgumentParser(description='Molecular dynamics of hard spheres. (version {0})'.format(__version__), prog='harddisk.py')
+    parser.add_argument('--version',
+                        '-V',
+                        action='version',
+                        version='%(prog)s {0}'.format(__version__))
+    parser.add_argument('--atoms',
+                        '-a',
+                        type=int,
+                        dest='atoms',
+                        metavar="32",
+                        default=32,
+                        help='Specify number of atoms.')
+    parser.add_argument('--vel',
+                        '-v',
+                        type=float,
+                        dest='velinterval',
+                        metavar="1",
+                        help='Output velocity list every i steps.')
+    parser.add_argument('--dt',
+                        '-d',
+                        type=float,
+                        dest='dt',
+                        metavar="0.01",
+                        default=0.01,
+                        help='Step interval.')
+    parser.add_argument('--temp',
+                        '-t',
+                        type=float,
+                        dest='temp',
+                        metavar="1.0",
+                        default=1.0,
+                        help='Specify the initial temperature in kT.')
+    parser.add_argument('--cell',
+                        '-c',
+                        dest='cell',
+                        metavar="10,10",
+                        default="10,10",
+                        help='Specify the cell shape.')
+    parser.add_argument('--hist',
+                        '-H',
+                        action='store_true',
+                        dest='hist',
+                        help='Show velocity histograms.')
+    parser.add_argument('basename',
+                        nargs='?',
+                        help='Basename of the output file.')
+    return parser.parse_args()
+
+
+
 #For nodebox animation #################################################
 
 
 def setup():
-    global system
-    width = 4.5
-    height = 4.5
-    zoom = 100.0
-    size(width*zoom, height*zoom)
-    system=System(step=0, nballs=17 , cell=np.array([width, height,height]),
-                   gc=GC(zoom=zoom),logfile=None, kT=None)
+    global system, options
+    zoom = 60.0
+    #コマンドラインオプションの解析 ####################################
+    options = getoptions()
+    #Initialize ########################################################
+    velfile = None
+    logfile = None
+    if options.basename is not None:
+        logfilename = "%s.log" % options.basename
+        logfile = open(logfilename,"w")
+        if options.velinterval is not None:
+            velfilename = "%s.vel" % options.basename
+            velfile = open(velfilename, "w")
+    cell = np.array([float(x) for x in options.cell.split(",")])
+    system = System(nballs=options.atoms,
+                    cell=cell,
+                    gc=GC(zoom=zoom),
+                    logfile=logfile,
+                    velfile=velfile,
+                    velint=options.velinterval,
+                    hist=options.hist,
+                    kT=options.temp)
+    # for NodeBox-like action
+    if len(cell) == 1:
+        size(zoom*cell[0], zoom)
+    else:
+        size(zoom*cell[0], zoom*cell[1])
+
 
 def draw():
-    global system
+    global system, options
     colormode(HSB)
     stroke(0,0,0)
     fill(0,0,1)
     #時間0.01だけアニメーションを進める。
     for i in range(10):
-        system.OneStep(0.001)
+        system.OneStep(options.dt)
     system.draw()
-    
-#for slient run #######################################################
-#コマンドライン引数は1番目がステップ数(省略不可)、2番目が出力ベース名、
-#継続データは標準入力。ただし、dimenが指定された場合は初期化。
-
-def usage():
-    print("usage: %s [-a n|--atoms=n][-d t|--dt=t][-t x|--temp=x][-c x,y|--cell=x,y,z][-v i|--vel=i] steps outputbase" % sys.argv[0])
-    print("    -a n|--atoms=n        Specify number of atoms.")
-    print("    -v i|--vel=i         Output velocity list every i steps.")
-    print("    -d t|--dt=t          Step interval(default=0.01).")
-    print("    -t x|--temp=x        Specify initial temperature in kT.")
-    print("    -c x,y|--cell=x,y    Specify initial cell size.")
-    print("-c and -a must be specified at a time.")
-    print(" If they are not specified, last data *.lj2 will be read from stdin.")
-    sys.exit(2)
-
-def main():
-    #コマンドラインオプションの解析 ####################################
-    args = sys.argv[1:len(sys.argv)]
-    optlist, args = getopt.getopt(args, 'v:d:t:c:a:', ['vel=','dt=','temp=','cell=','atoms='])
-    if len(args) < 2:
-        usage()
-    steps = int(args[0])
-    basename = args[1]
-    temp = 0.0
-    cell = None
-    natom = 0
-    velinterval = 0
-    deltatime = 0.01
-    for o,a in optlist:
-        if o in ("-t","--temp"):
-            temp = float(a)
-        if o in ("-a","--atoms"):
-            natom = int(a)
-        if o in ("-v","--vel"):
-            velinterval = int(a)
-        if o in ("-d","--dt"):
-            deltatime = float(a)
-        if o in ("-c","--cell"):
-            c = a.split(",")
-            for i in range(0,len(c)):
-                c[i] = float(c[i])
-            cell = c
-    #Initialize ########################################################
-    velfile = None
-    if velinterval > 0:
-        velfilename = "%s.vel" % basename
-        velfile = open(velfilename, "w")
-    logfilename = "%s.log" % basename
-    logfile = open(logfilename,"w")
-    system = None
-    if cell is None:
-        #cell is not defined; Continue from the last data.
-        if temp > 0.0:
-            system = System(input=sys.stdin,logfile=logfile,
-                        velfile=velfile,velint=velinterval,kT=temp)
-        else:    
-            system = System(input=sys.stdin,logfile=logfile,
-                        velfile=velfile,velint=velinterval)
-    else:
-        if natom==0:
-            usage()
-        #Cell is defined. Start new run.
-        system = System(nballs=natom,cell=cell,gc=None,logfile=logfile,
-                        velfile=velfile,velint=velinterval,kT=temp)
-
-    #Main Loop #########################################################
-    for step in range(0,steps):
-        system.OneStep(deltatime)
-
-    #Finish ############################################################
-    outfilename = "%s.lj2" % basename
-    outfile = open(outfilename,"w")
-    system.save(outfile)
-    outfile.close()
-
 
 #Uncomment one of them
 speed(100000)  #for NodeBox
 animate(setup,draw) # for nodebox_wrapper3
-# main()     #for Commandline execution
+

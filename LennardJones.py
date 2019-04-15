@@ -325,7 +325,7 @@ class System:
     
 #Commandline parser #########################################################
 def getoptions():
-    parser = ap.ArgumentParser(description='Molecular dynamics of hard spheres. (version {0})'.format(__version__), prog='harddisk.py')
+    parser = ap.ArgumentParser(description='Molecular dynamics of Lennard-Jones gas. (version {0})'.format(__version__), prog='LennardJones.py')
     parser.add_argument('--version',
                         '-V',
                         action='version',

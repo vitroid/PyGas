@@ -40,11 +40,11 @@ Install the following packages in advance. They are available via `pip` package 
 
 ### `LennardJones.py`: Lennard-Jones gas.
 
-    usage: harddisk.py [-h] [--version] [--atoms 32] [--vel 1] [--dt 0.01]
-                       [--temp 1.0] [--cell 10,10] [--hist]
-                       [basename]
+    usage: LennardJones.py [-h] [--version] [--atoms 32] [--vel 1] [--dt 0.01]
+                           [--temp 1.0] [--cell 10,10] [--hist]
+                           [basename]
     
-    Molecular dynamics of hard spheres. (version 0.1)
+    Molecular dynamics of Lennard-Jones gas. (version 0.1)
     
     positional arguments:
       basename              Basename of the output file.
@@ -105,11 +105,11 @@ PyGasはlPythonで書かれた気体分子運動のデモ用の分子動力学�
 
 ### `LennardJones.py`: Lennard-Jonesガスのシミュレーション。
 
-    usage: harddisk.py [-h] [--version] [--atoms 32] [--vel 1] [--dt 0.01]
-                       [--temp 1.0] [--cell 10,10] [--hist]
-                       [basename]
+    usage: LennardJones.py [-h] [--version] [--atoms 32] [--vel 1] [--dt 0.01]
+                           [--temp 1.0] [--cell 10,10] [--hist]
+                           [basename]
     
-    Molecular dynamics of hard spheres. (version 0.1)
+    Molecular dynamics of Lennard-Jones gas. (version 0.1)
     
     positional arguments:
       basename              Basename of the output file.

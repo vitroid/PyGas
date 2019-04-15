@@ -37,7 +37,7 @@ class GC:
 
 #a set of LJ particles ########################################################
 class Particles:
-    def __init__(self,pos=None,vel=None,file=None):
+    def __init__(self,pos=None,vel=None,file=None,mass=1.0):
         if file is not None:
             self.load(file)
         else:
@@ -45,12 +45,21 @@ class Particles:
             self.vel = vel
             self.resetforce()
             self.N, self.dim = pos.shape
+            self.mass=mass
     
     def forward(self, dt):
         self.pos += self.vel * dt
 
-    def accel(self, dt):
-        self.vel += self.force * dt
+    def accel(self, dt, yperiodic=True, cell=None, grav=0.0):
+        self.vel += self.force/self.mass * dt
+        #reflection at the top and bottom
+        if not yperiodic:
+            self.vel[:,1] += grav * dt
+            for v,p in zip(self.vel,self.pos):
+                if v[1]<0 and p[1]<0:
+                    v[1] = -v[1]
+                if v[1]>0 and p[1]>cell[1]:
+                    v[1] = -v[1]
 
     def resetforce(self):
         self.force = np.zeros_like(self.pos)
@@ -58,11 +67,16 @@ class Particles:
     def rescale(self,factor):
         self.vel *= factor
 
-    def interact(self, cell):
+    def interact(self, cell, yperiodic=True):
         posx = np.broadcast_to(self.pos, (self.pos.shape[0], self.pos.shape[0], self.pos.shape[1]))
         posy = np.swapaxes(posx, 0,1)
         delta = posx - posy
-        delta -= np.floor(delta/cell+0.5)*cell
+        if yperiodic:
+            delta -= np.floor(delta/cell+0.5)*cell
+        else:
+            delta[:,:,0] -= np.floor(delta[:,:,0]/cell[0]+0.5)*cell[0]
+            if delta.shape[2] > 2:
+                delta[:,:,2:] -= np.floor(delta[:,:,2:]/cell[2:]+0.5)*cell[2:]
         ddsum = np.sum(delta*delta, axis=2)
         pot = 4.0*(ddsum**-6 - ddsum**-3)
         force0 = -48.0*ddsum**-7 + 24.0*ddsum**-4
@@ -83,9 +97,15 @@ class Particles:
         v = 4.0*kt
         self.vel = v * (np.random.random(self.pos.shape) - 0.5)
 
-    def draw(self, cell, gc, avgvel):
+    def draw(self, cell, gc, avgvel, yperiodic=True):
         pos = self.pos.copy()
-        pos -= np.floor(pos / cell) * cell
+        if yperiodic:
+            pos -= np.floor(pos / cell) * cell
+        else:
+            pos[:,0] -= np.floor(pos[:,0] / cell[0]) * cell[0]
+            if pos.shape[1] >2:
+                pos[:,2:] -= np.floor(pos[:,2:] / cell[2:]) * cell[2:]
+            
         if self.dim < 3:
             for p,v in zip(pos,self.vel):
                 oval((p[0]-0.5)*gc.zoom,(p[1]-0.5)*gc.zoom, gc.zoom,gc.zoom)
@@ -139,7 +159,10 @@ class System:
                  velfile=None,
                  velint=0,
                  kT=None,
-                 hist=False):
+                 grav=0.0,
+                 hist=False,
+                 hhist=False,
+    ):
         self.cell = cell
         if input is not None:
             self.load(input)
@@ -158,6 +181,9 @@ class System:
         self.hist  = hist
         self.histx = Hist(-5,+5,0.05)
         self.histy = Hist(-5,+5,0.05)
+        self.hhist  = hhist
+        self.histh = Hist(0,cell[1],0.5)
+        self.grav=grav
         
     def lattice(self,nballs):
         dim = self.cell.shape[0]
@@ -241,14 +267,14 @@ class System:
 
     def OneStep(self,dt):
         #Progress Momenta (half)
-        self.balls.accel(dt/2.0)
+        self.balls.accel(dt/2.0, self.grav==0.0, self.cell, self.grav)
         #Progress Position
         self.balls.forward(dt)
         self.balls.resetforce()
         #Force
-        self.pot,virsum = self.balls.interact(self.cell)
+        self.pot,virsum = self.balls.interact(self.cell, self.grav==0.0)
         #Progress Momenta (half)
-        self.balls.accel(dt/2.0)
+        self.balls.accel(dt/2.0, self.grav==0.0, self.cell, self.grav)
         #temperature scaling
         #if self.kT is not None:
         if False:
@@ -273,6 +299,9 @@ class System:
             self.histx.accum(v[0],1.0)
             if len(v.shape)>1:
                 self.histy.accum(v[1],1.0)
+        if self.balls.pos.shape[1] >1:
+            for p in self.balls.pos:
+                self.histh.accum(p[1],1.0)
         self.step += 1
     
     def draw(self):
@@ -282,15 +311,17 @@ class System:
                 avgvel = 1.0
                 if self.kT is not None:
                     avgvel = sqrt(dim * self.kT)
-                self.balls.draw(self.cell,self.gc,avgvel)
+                self.balls.draw(self.cell,self.gc,avgvel, self.grav==0.0)
             else:
-                self.balls.draw(self.cell,self.gc,0.0)
+                self.balls.draw(self.cell,self.gc,0.0, self.grav==0.0)
             if dim>1:
                 canvasx = self.cell[0]*self.gc.zoom
                 canvasy = self.cell[1]*self.gc.zoom
                 if self.hist:
                     self.histx.draw(0,canvasy,canvasx,canvasy/2)
                     self.histx.draw(canvasx,canvasy,canvasx/2,canvasy,vertical=True)
+                if self.hhist:
+                    self.histh.draw(canvasx,canvasy,canvasx/2,canvasy,vertical=True)
             else:
                 canvasx = self.cell[0]*self.gc.zoom
                 canvasy = self.gc.zoom
@@ -357,6 +388,13 @@ def getoptions():
                         metavar="1.0",
                         default=1.0,
                         help='Specify the initial temperature in kT.')
+    parser.add_argument('--gravity',
+                        '-g',
+                        type=float,
+                        dest='gravity',
+                        metavar="0.0",
+                        default=0.0,
+                        help='Specify the gravity. Y direction becomes aperiodic when this option is specified.')
     parser.add_argument('--cell',
                         '-c',
                         dest='cell',
@@ -400,6 +438,8 @@ def setup():
                     velfile=velfile,
                     velint=options.velinterval,
                     hist=options.hist,
+                    grav=options.gravity,
+                    hhist=options.gravity>0.0,
                     kT=options.temp)
     # for NodeBox-like action
     if len(cell) == 1:

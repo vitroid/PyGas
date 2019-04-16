@@ -11,6 +11,7 @@ import argparse  as ap
 from nodebox_wrapper3 import *
 import numpy as np
 from histogram import Hist
+import logging
 
 #General list serializer
 def serialize(x):
@@ -127,6 +128,91 @@ class Particles:
     
 
 
+
+
+def lattice1d(nballs):
+    n = nballs
+    gap=0.02
+    ex = 1 + gap
+    x = 0.0
+    pos = []
+    while 0 < n:
+        pos.append([x])
+        n -= 1
+        x += ex
+    pos = np.array(pos)
+    vel = np.zeros_like(pos)
+    return Particles(pos, vel)
+
+def lattice2d(nballs, cell):
+    logger = logging.getLogger()
+    n = nballs
+    gap=0.02
+    ex = 1 + gap
+    nx = int(cell[0] /ex)
+    ny = int(cell[1] / (ex * sqrt(3.0)/2))
+    pos = []
+    for iy in range(0,ny):
+        for ix in range(0,nx):
+            x = ix * ex
+            y = iy * ex * sqrt(3.0)/2 + 0.1
+            if iy % 2 != 0:
+                x += ex / 2.0
+            pos.append([x,y])
+            n -= 1
+            if n == 0:
+                break
+        if n==0:
+            break
+    pos = np.array(pos)
+    vel = np.zeros_like(pos)
+    if pos.shape[0] < nballs:
+        logger.info("Placed only {0} particles.".format(pos.shape[0]))
+    return Particles(pos, vel)
+
+def lattice3d(nballs, cell):
+    n = nballs
+    gap=0.02
+    ex = 1 + gap
+    nx = int(cell[0] /ex)
+    ny = int(cell[1] / (ex * sqrt(3.0)/2))
+    nz = int(cell[2] / (ex * sqrt(6.0)/3.0))
+    pos = []
+    for iz in range(0,nz):
+        for iy in range(0,ny):
+            for ix in range(0,nx):
+                x = ix * ex
+                y = iy * ex * sqrt(3.0)/2 + 0.1
+                z = iz * ex * sqrt(6.0)/3 + 0.1
+                if iy % 2 != 0:
+                    x += ex / 2.0
+                if iz % 2 != 0:
+                    x += ex / 2.0
+                    y += ex * sqrt(3.0)/2 * 2.0/3.0
+                pos.append([x,y,z])
+                n -= 1
+                if n==0:
+                    break
+            if n == 0:
+                break
+        if n==0:
+            break
+    pos = np.array(pos)
+    vel = np.zeros_like(pos)
+    if pos.shape[0] < nballs:
+        logger.info("Placed only {0} particles.".format(pos.shape[0]))
+    return Particles(pos,vel)
+
+
+def lattice(nballs, cell):
+    dim = cell.shape[0]
+    if dim == 1:
+        return lattice1d(nballs)
+    elif dim == 2:
+        return lattice2d(nballs, cell)
+    elif dim == 3:
+        return lattice3d(nballs, cell)
+
 #System of particles ###################################################
 class System:
     def __init__(self,
@@ -144,7 +230,7 @@ class System:
         if input is not None:
             self.load(input)
         else:
-            self.lattice(nballs)
+            self.balls = lattice(nballs, cell)
             if kT is not None:
                 # ra.seed(1)
                 self.thermalize(kT)
@@ -159,14 +245,6 @@ class System:
         self.histx = Hist(-5,+5,0.05)
         self.histy = Hist(-5,+5,0.05)
         
-    def lattice(self,nballs):
-        dim = self.cell.shape[0]
-        if dim == 1:
-            self.balls = self.lattice1d(nballs)
-        elif dim == 2:
-            self.balls = self.lattice2d(nballs)
-        elif dim == 3:
-            self.balls = self.lattice3d(nballs)
 
     def thermalize(self,kT):
         self.balls.randomize(kT)
@@ -174,70 +252,6 @@ class System:
         velsum = np.sum(self.balls.vel, axis=0)
         velsum /= self.balls.N
         self.balls.vel -= velsum
-
-
-    def lattice1d(self,nballs):
-        n = nballs
-        x = 0.0
-        pos = []
-        while 0 < n:
-            pos.append([x])
-            n -= 1
-            x += 1.12
-        pos = np.array(pos)
-        vel = np.zeros_like(pos)
-        return Particles(pos, vel)
-
-    def lattice2d(self,nballs):
-        n = nballs
-        nx = int(self.cell[0] /1.12)
-        ny = int(self.cell[1] / (1.12 * sqrt(3.0)/2))
-        pos = []
-        for iy in range(0,ny):
-            for ix in range(0,nx):
-                x = ix * 1.12
-                y = iy * 1.12 * sqrt(3.0)/2 + 0.1
-                if iy % 2 != 0:
-                    x += 1.12 / 2.0
-                pos.append([x,y])
-                n -= 1
-                if n == 0:
-                    break
-            if n==0:
-                break
-        pos = np.array(pos)
-        vel = np.zeros_like(pos)
-        return Particles(pos, vel)
-
-    def lattice3d(self,nballs):
-        n = nballs
-        nx = int(self.cell[0] /1.12)
-        ny = int(self.cell[1] / (1.12 * sqrt(3.0)/2))
-        nz = int(self.cell[2] / (1.12 * sqrt(6.0)/3.0))
-        pos = []
-        for iz in range(0,nz):
-            for iy in range(0,ny):
-                for ix in range(0,nx):
-                    x = ix * 1.12
-                    y = iy * 1.12 * sqrt(3.0)/2 + 0.1
-                    z = iz * 1.12 * sqrt(6.0)/3 + 0.1
-                    if iy % 2 != 0:
-                        x += 1.12 / 2.0
-                    if iz % 2 != 0:
-                        x += 1.12 / 2.0
-                        y += 1.12 * sqrt(3.0)/2 * 2.0/3.0
-                    pos.append([x,y,z])
-                    n -= 1
-                    if n==0:
-                        break
-                if n == 0:
-                    break
-            if n==0:
-                break
-        pos = np.array(pos)
-        vel = np.zeros_like(pos)
-        return Particles(pos,vel)
-
 
     def OneStep(self,dt):
         #Progress Momenta (half)
@@ -275,6 +289,7 @@ class System:
                 self.histy.accum(v[1],1.0)
         self.step += 1
     
+
     def draw(self):
         if self.gc is not None:
             dim = self.cell.shape[0]
@@ -347,8 +362,8 @@ def getoptions():
                         '-d',
                         type=float,
                         dest='dt',
-                        metavar="0.01",
-                        default=0.01,
+                        metavar="0.1",
+                        default=0.1,
                         help='Step interval.')
     parser.add_argument('--temp',
                         '-t',
@@ -368,6 +383,16 @@ def getoptions():
                         action='store_true',
                         dest='hist',
                         help='Show velocity histograms.')
+    parser.add_argument('--debug',
+                        '-D',
+                        action='store_true',
+                        dest='debug',
+                        help='Show debug messages.')
+    parser.add_argument('--quiet',
+                        '-Q',
+                        action='store_true',
+                        dest='quiet',
+                        help='Suppress messages.')
     parser.add_argument('basename',
                         nargs='?',
                         help='Basename of the output file.')
@@ -383,6 +408,20 @@ def setup():
     zoom = 60.0
     #コマンドラインオプションの解析 ####################################
     options = getoptions()
+    # Logger
+    if options.debug:
+        logging.basicConfig(level=logging.DEBUG,
+                            format="%(asctime)s %(levelname)s %(message)s")
+    elif options.quiet:
+        logging.basicConfig(level=logging.WARN,
+                            format="%(levelname)s %(message)s")
+    else:
+        #normal
+        logging.basicConfig(level=logging.INFO,
+                            format="%(levelname)s %(message)s")
+    logger = logging.getLogger()
+    logger.debug("Debug mode.")
+
     #Initialize ########################################################
     velfile = None
     logfile = None
@@ -413,12 +452,11 @@ def draw():
     colormode(HSB)
     stroke(0,0,0)
     fill(0,0,1)
-    #時間0.01だけアニメーションを進める。
     for i in range(10):
-        system.OneStep(options.dt)
+        system.OneStep(options.dt/10)
     system.draw()
 
-#Uncomment one of them
-speed(100000)  #for NodeBox
-animate(setup,draw) # for nodebox_wrapper3
+
+speed(100)
+animate(setup,draw)
 

@@ -1,4 +1,4 @@
-from nodebox_wrapper3 import *
+from nodebox_wrapper import *
 import numpy as np
 
 class Hist:

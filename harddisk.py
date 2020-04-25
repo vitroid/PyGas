@@ -9,7 +9,7 @@ __version__ = "0.1"
 from math import *
 import random as ra
 import sys
-from nodebox_wrapper3 import *
+from nodebox_wrapper import *
 import argparse  as ap
 import time
 from histogram import Hist
@@ -623,6 +623,8 @@ speed(30)  #for NodeBox
 #main()     #for Commandline execution
 
 
-
-animate(setup,draw,video=1800)
+# Animate
+animate(setup,draw)
+# or record animation 1800 frames
+# animate(setup,draw,video=1800)
 

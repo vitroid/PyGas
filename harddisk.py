@@ -5,6 +5,7 @@
 #物理化学5でのデモのために、運動エネルギー分布を表示する。
 __version__ = "0.1"
 
+
 from math import *
 import random as ra
 import sys
@@ -419,7 +420,6 @@ class System:
                 if self.hist:
                     self.histx.draw(0,canvasy,canvasx,canvasy/2)
 #                    self.histx.draw(canvasx,canvasy,canvasx/2,canvasy,vertical=True)
-                
 
     def load(self,file):
         s = file.readline()
@@ -549,7 +549,6 @@ def setup():
     else:
         size(zoom*cell[0], zoom*cell[1])
 
-
 def draw():
     global system, options
     colormode(HSB)
@@ -558,12 +557,72 @@ def draw():
     system.OneStep(options.dt)
     system.draw()
 
+#for slient run #########################################################
+#コマンドライン引数は1番目がステップ数(省略不可)、2番目が出力ベース名、
+#継続データは標準入力。ただし、dimenが指定された場合は初期化。
 
 
+def main():
+    #コマンドラインオプションの解析 ####################################
+    args = sys.argv[1:len(sys.argv)]
+    optlist, args = getopt.getopt(args, 'fd:t:c:a:', ['flight','dt=','temp=','cell=','atoms='])
+    if len(args) < 2:
+        usage()
+    steps = int(args[0])
+    basename = args[1]
+    temp = 0.0
+    cell = None
+    natom = 0
+    flight = False
+    # 画面表示しないなら、Δtはできるだけ大きいほうが速い。
+    deltatime = 1.0
+    for o,a in optlist:
+        if o in ("-t","--temp"):
+            temp = float(a)
+        if o in ("-a","--atoms"):
+            natom = int(a)
+        if o in ("-f","--flight"):
+            flight = True
+        if o in ("-d","--dt"):
+            deltatime = float(a)
+        if o in ("-c","--cell"):
+            cell = a.split(",")
+            for i in range(0,len(cell)):
+                cell[i] = float(cell[i])
+    #Initialize ########################################################
+    velfile = None
+    if flight:
+        velfilename = "%s.fli" % basename
+        velfile = open(velfilename, "w")
+    logfilename = "%s.log" % basename
+    logfile = open(logfilename,"w")
+    system = None
+    if cell is None:
+        #cell is not defined; Continue from the last data.
+        system = System(input=sys.stdin,logfile=logfile,
+                        velfile=velfile)
+    else:
+        if natom==0:
+            usage()
+        #Cell is defined. Start new run.
+        system = System(nballs=natom,cell=cell,gc=None,logfile=logfile,
+                        velfile=velfile,kT=temp)
+
+    #Main Loop #########################################################
+    for step in range(0,steps):
+        system.OneStep(deltatime)
+
+    #Finish ############################################################
+    outfilename = "%s.hd2" % basename
+    outfile = open(outfilename,"w")
+    system.save(outfile)
+    outfile.close()
     
 #Uncomment one of them    
-speed(100)  #for NodeBox
+speed(30)  #for NodeBox
+#main()     #for Commandline execution
 
-# for nodebox_wrapper
-animate(setup,draw)
+
+
+animate(setup,draw,video=1800)
 

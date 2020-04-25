@@ -1,9 +1,15 @@
 #!/usr/bin/env python
 # coding: utf-8
+
+#
+# 2020 video recording
+#
+
 import pygame
 from pygame.locals import *
 import random as ra
-
+import logging
+import subprocess
 
 #settings
 RGB = "rgb"
@@ -16,15 +22,20 @@ FILL = True
 STROKE = False
 STROKEWIDTH = 1
 FPS = 0
-SCREEN=pygame.display.set_mode((1000,1000),0,24)
 FRAME = 0
+WIDTH=0
+HEIGHT=0
 MOUSEX = 1
 MOUSEY = 2
 
 
 #define the campus size
 def size(w,h):
-    global SCREEN
+    global SCREEN, WIDTH, HEIGHT
+    logger = logging.getLogger()
+    logger.debug("size {0} {1}".format(w,h))
+    WIDTH = w
+    HEIGHT = h
     SCREEN=pygame.display.set_mode((int(w),int(h)),0,24)
     SCREEN.fill(BACKGROUND)
     pygame.display.flip()    #裏画面に描かれたものを表示する。
@@ -110,12 +121,28 @@ def speed(fps):
     global FPS
     FPS = fps
 
-def animate(setup,draw):
-    global FPS,FRAME,MOUSEX,MOUSEY
+
+def animate(setup,draw, video=0):
+    global FPS,FRAME,MOUSEX,MOUSEY,WIDTH,HEIGHT,SCREEN
     setup()
     if FPS == 0:
         draw()
         return
+    if video > 0:
+        # setup video
+        pcmd = ["/usr/local/bin/ffmpeg",
+                "-y",
+                "-f", "rawvideo",
+                "-vcodec", "rawvideo",
+                "-s", "{0}x{1}".format(int(WIDTH), int(HEIGHT)),
+                "-pix_fmt", "rgb24",
+                "-r", "{0}".format(FPS),
+                "-i", "-",
+                "-an",
+                "-pix_fmt",
+                "yuv420p",
+                "nodebox.mp4"]
+        pipe = subprocess.Popen(pcmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
     while True:
         pygame.event.get()
         pressed = pygame.key.get_pressed()
@@ -127,7 +154,15 @@ def animate(setup,draw):
         pygame.display.flip()    #裏画面に描かれたものを表示する。
         pygame.time.wait(1000//FPS)
         FRAME += 1
-
+        if video > 0:
+            s = pygame.image.tostring(SCREEN, "RGB", False)
+            print(len(s))
+            pipe.stdin.write(s)
+        if video==FRAME:
+            break
+    if video > 0:
+        pipe.close()
+            
 
 def wait_q():
     pygame.display.flip()    #裏画面に描かれたものを表示する。
@@ -137,4 +172,7 @@ def wait_q():
         if pressed[K_q]:
             break
         pygame.time.wait(100)
+
+
+
 

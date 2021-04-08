@@ -8,7 +8,7 @@ from math import *
 import random as ra
 import sys
 import argparse  as ap
-from nodebox_wrapper3 import *
+from nodebox_wrapper import *
 import numpy as np
 from histogram import Hist
 import logging

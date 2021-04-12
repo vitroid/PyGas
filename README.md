@@ -68,7 +68,7 @@ Install the following packages in advance. They are available via `pip` package 
 
 # PyGas
 
-PyGasはlPythonで書かれた気体分子運動のデモ用の分子動力学プログラムです。
+PyGasはPythonで書かれた気体分子運動のデモ用の分子動力学プログラムです。
 
 ## 環境
 

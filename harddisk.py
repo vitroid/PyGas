@@ -13,6 +13,7 @@ from nodebox_wrapper import *
 import argparse  as ap
 import time
 from histogram import Hist
+from colorscheme import AbsoluteVelocity
 
 #General list serializer
 def serialize(x):
@@ -33,8 +34,6 @@ def unserialize(s):
 
 
 
-        
-
 class Wall:
     def __init__(self,coeff=None,file=None):
         if file is not None:
@@ -46,7 +45,7 @@ class Wall:
     def __str__(self):
         s = serialize(self.coeff)
         return s
-    
+
     def load(self,file):
         s = file.readline()
         self.coeff = unserialize(s)
@@ -63,13 +62,14 @@ class GC:
 
 #a HardDisk #######################
 class HardDisk:
-    def __init__(self,pos=None,vel=None,file=None):
+    def __init__(self,pos=None,vel=None,file=None,colorscheme=None):
         if file is not None:
             self.load(file)
         else:
             self.pos = pos
             self.vel = vel
             self.flighttime = 0.0
+        self.colorscheme=colorscheme
 
     def randomize(self,kt):
         v = kt
@@ -84,12 +84,12 @@ class HardDisk:
         for i in range(0,dim):
                 vec[i] *= v / s
         self.vel = vec
-        
+
     def forward(self,dt):
         for i in range(0,len(self.pos)):
             self.pos[i] += self.vel[i] * dt
         self.flighttime += dt
-    
+
     # ball-to-ball collision time
     def collide(self,target):
         dim = len(self.pos)
@@ -110,7 +110,7 @@ class HardDisk:
         else:
             dt = (-b-sqrt(d))/a
         return dt
-    
+
     # ball-to-ball reflection
     def reflect(self, target):
         dim = len(self.pos)
@@ -135,8 +135,8 @@ class HardDisk:
         self.flighttime = 0.0
         target.flighttime = 0.0
         return (sqrt(vels),times,sqrt(velt),timet)
-        
-            
+
+
     #wallはax+by=cのabcからなるリスト
     def collideWall(self,wall):
         dim = len(self.pos)
@@ -168,7 +168,7 @@ class HardDisk:
         for i in range(0,dim):
             kin += self.vel[i]**2
         return kin * 0.5
-    
+
     def draw(self, cell, gc, avgvel):
         pos = list(self.pos)
         dim = len(self.pos)
@@ -176,13 +176,14 @@ class HardDisk:
             oval((pos[0]-0.5)*gc.zoom,0.0, gc.zoom,gc.zoom)
             line(pos[0]*gc.zoom,0.5*gc.zoom,(pos[0]+self.vel[0])*gc.zoom,0.5*gc.zoom)
         elif dim==2:
+            if self.colorscheme is not None:
+                vel = sum([x**2 for x in self.vel])**0.5
+                h,s,b = self.colorscheme.getHSB(vel)
+                fill(h,s,b)
             oval((pos[0]-0.5)*gc.zoom,(pos[1]-0.5)*gc.zoom, gc.zoom,gc.zoom)
             line(pos[0]*gc.zoom,pos[1]*gc.zoom,(pos[0]+self.vel[0])*gc.zoom,(pos[1]+self.vel[1])*gc.zoom)
         else:
-            vel = 0
-            for v in self.vel:
-                vel += v**2
-            vel = sqrt(vel)
+            vel = sum([x**2 for x in self.vel])**0.5
             sat = (pos[2] / cell[2])*0.5+0.5
             hue = 0.666 - 0.3 * vel / avgvel
             if vel > 0:
@@ -202,7 +203,7 @@ class HardDisk:
     def __str__(self):
         s = serialize(self.pos) + serialize(self.vel)
         return s
-    
+
     def load(self,file):
         s = file.readline()
         self.pos = unserialize(s)
@@ -216,9 +217,22 @@ class HardDisk:
 
 #System of HardDisks ###################################################
 class System:
-    def __init__(self,cell=None,nballs=10,step=0,gc=None,
-                 input=None,logfile=sys.stdout,velfile=None,
-                 kT=None, hist=False ):
+    def __init__(self,
+                 cell=None,
+                 nballs=10,
+                 step=0,
+                 gc=None,
+                 input=None,
+                 logfile=sys.stdout,
+                 velfile=None,
+                 kT=None,
+                 hist=False ):
+        if hist:
+            self.colorscheme = AbsoluteVelocity(max=5/2)
+            self.histx = Hist(-5,+5,0.05,self.colorscheme)
+            self.histy = Hist(-5,+5,0.05,self.colorscheme)
+        else:
+            self.colorscheme = None
         if input is not None:
             self.load(input)
         else:
@@ -234,16 +248,14 @@ class System:
         self.velfile = velfile
         self.kT = kT
         self.hist  = hist
-        self.histx = Hist(-5,+5,0.05)
-        self.histy = Hist(-5,+5,0.05)
-        
+
     def lattice(self,cell,nballs):
         self.balls = []
         self.cell = cell
         dim = len(cell)
         if dim == 1:
             self.lattice1d(nballs)
-            self.walls= [ Wall(coeff=[1.0, 0.0]), 
+            self.walls= [ Wall(coeff=[1.0, 0.0]),
                           Wall(coeff=[1.0, cell[0]])]
             self.area = 2.0*1.0
             self.volume = cell[0]
@@ -252,7 +264,7 @@ class System:
             self.lattice2d(nballs)
             #d次元の壁はd+1個の係数で指示する。
             #最後の要素以外は単位ベクトルでなければいけない。
-            self.walls= [ Wall(coeff=[1.0, 0.0, 0.0]), 
+            self.walls= [ Wall(coeff=[1.0, 0.0, 0.0]),
                           Wall(coeff=[1.0, 0.0, cell[0]]),
                           Wall(coeff=[0.0, 1.0, 0.0]),
                           Wall(coeff=[0.0, 1.0, cell[1]]) ]
@@ -260,7 +272,7 @@ class System:
             self.volume = cell[0]*cell[1]
         elif dim == 3:
             self.lattice3d(nballs)
-            self.walls= [ Wall(coeff=[1.0, 0.0, 0.0, 0.0]), 
+            self.walls= [ Wall(coeff=[1.0, 0.0, 0.0, 0.0]),
                           Wall(coeff=[1.0, 0.0, 0.0, cell[0]]),
                           Wall(coeff=[0.0, 1.0, 0.0, 0.0]),
                           Wall(coeff=[0.0, 1.0, 0.0, cell[1]]),
@@ -274,7 +286,7 @@ class System:
         N = len(self.balls)
         #1粒子だけにエネルギーを与える。
         self.balls[0].randomize(sqrt(dim*kT*float(N)))
-    
+
     def rescale(self,factor):
         for b in self.balls:
             b.rescale(factor)
@@ -292,7 +304,7 @@ class System:
         x = 0.1
         y = 0.1
         while 0 < n:
-            self.balls += [HardDisk([x,y],[0.0,0.0])]
+            self.balls += [HardDisk([x,y],[0.0,0.0],colorscheme=self.colorscheme)]
             n -= 1
             x += 1.12
             if self.cell[0] < x:
@@ -393,7 +405,7 @@ class System:
             if len(b.vel)>1:
                 self.histy.accum(b.vel[1],1.0)
         self.step += 1
-    
+
     def draw(self):
         if self.gc is not None:
             dim = len(self.cell)
@@ -480,6 +492,13 @@ def getoptions():
                         metavar="32",
                         default=32,
                         help='Specify number of atoms.')
+    parser.add_argument('--record',
+                        '-r',
+                        type=int,
+                        dest='frames',
+                        metavar="32",
+                        default=0,
+                        help='Record the first x frames in a mp4 file.')
     parser.add_argument('--dt',
                         '-d',
                         type=float,
@@ -519,9 +538,6 @@ def getoptions():
 
 def setup():
     global system, options
-    #コマンドラインオプションの解析 ####################################
-    options = getoptions()
-    print(options)
     #Initialize ########################################################
     velfile = None
     logfile = None
@@ -531,10 +547,10 @@ def setup():
         if options.flight:
             velfilename = "%s.fli" % options.basename
             velfile = open(velfilename, "w")
-    zoom = 60.0
-    gc = GC(zoom=zoom) 
     #Cell is defined. Start new run.
     cell =[float(x) for x in options.cell.split(",")]
+    zoom = 600 / cell[0]
+    gc = GC(zoom=zoom)
     system = System(nballs=options.atoms,
                     cell=cell,
                     gc=gc,
@@ -617,14 +633,17 @@ def main():
     outfile = open(outfilename,"w")
     system.save(outfile)
     outfile.close()
-    
-#Uncomment one of them    
+
+#コマンドラインオプションの解析 ####################################
+options = getoptions()
+print(options)
+
+#Uncomment one of them
 speed(30)  #for NodeBox
 #main()     #for Commandline execution
 
 
 # Animate
-animate(setup,draw)
+animate(setup,draw, video=options.frames)
 # or record animation 1800 frames
 # animate(setup,draw,video=1800)
-

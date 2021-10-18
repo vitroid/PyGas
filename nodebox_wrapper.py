@@ -112,7 +112,7 @@ def line(x1,y1,x2,y2):
 
 def random():
     return ra.random()
-        
+
 def strokewidth(w):
     global STROKEWIDTH
     STROKEWIDTH = int(w+0.5)
@@ -130,7 +130,7 @@ def animate(setup,draw, video=0):
         return
     if video > 0:
         # setup video
-        pcmd = ["/usr/local/bin/ffmpeg",
+        pcmd = ["ffmpeg",
                 "-y",
                 "-f", "rawvideo",
                 "-vcodec", "rawvideo",
@@ -156,13 +156,14 @@ def animate(setup,draw, video=0):
         FRAME += 1
         if video > 0:
             s = pygame.image.tostring(SCREEN, "RGB", False)
-            print(len(s))
+            # print(len(s))
             pipe.stdin.write(s)
         if video==FRAME:
             break
     if video > 0:
-        pipe.close()
-            
+        # pipe.close()
+        pass
+
 
 def wait_q():
     pygame.display.flip()    #裏画面に描かれたものを表示する。
@@ -172,7 +173,3 @@ def wait_q():
         if pressed[K_q]:
             break
         pygame.time.wait(100)
-
-
-
-

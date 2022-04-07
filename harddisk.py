@@ -231,8 +231,10 @@ class System:
             self.colorscheme = AbsoluteVelocity(max=5/2)
             self.histx = Hist(-5,+5,0.05,self.colorscheme)
             self.histy = Hist(-5,+5,0.05,self.colorscheme)
+            self.hist = True
         else:
             self.colorscheme = None
+            self.hist = False
         if input is not None:
             self.load(input)
         else:
@@ -383,10 +385,11 @@ class System:
             sumpulse += impulse
             if impulse == 0.0:
                 ncollision += 1
-            for b in self.balls:
-                self.histx.accum(b.vel[0],progress)
-                if len(b.vel)>1:
-                    self.histy.accum(b.vel[1],progress)
+            if self.hist:
+                for b in self.balls:
+                    self.histx.accum(b.vel[0],progress)
+                    if len(b.vel)>1:
+                        self.histy.accum(b.vel[1],progress)
         #Data output
         if self.logfile is not None:
             dim = len(self.cell)
@@ -400,10 +403,11 @@ class System:
             self.logfile.write("%s %s %s %s %s\n" %
                                (self.step, kT, pressure*self.volume/(N * kT), kin, ncollision))
         #histogram
-        for b in self.balls:
-            self.histx.accum(b.vel[0],1.0)
-            if len(b.vel)>1:
-                self.histy.accum(b.vel[1],1.0)
+        if self.hist:
+            for b in self.balls:
+                self.histx.accum(b.vel[0],1.0)
+                if len(b.vel)>1:
+                    self.histy.accum(b.vel[1],1.0)
         self.step += 1
 
     def draw(self):

@@ -6,57 +6,63 @@ import sys
 import getopt
 from nodebox_wrapper3 import *
 
-#General list serializer
+# General list serializer
+
+
 def serialize(x):
     dim = len(x)
     s = ""
-    for i in range(0,dim):
+    for i in range(0, dim):
         s += "%s " % x[i]
     s += "\n"
     return s
 
-#General list unserializer
+# General list unserializer
+
+
 def unserialize(s):
     s = s.rstrip(" \n")
     x = s.split(" ")
-    for i in range(0,len(x)):
+    for i in range(0, len(x)):
         x[i] = float(x[i])
     return x
 
 #graphic context #######################################################
+
+
 class GC:
-    def __init__(self,zoom=1.0):
+    def __init__(self, zoom=1.0):
         self.zoom = zoom
 
 
 #an LJ particle ########################################################
 class Particle:
-    def __init__(self,pos=None,vel=None,file=None):
+    def __init__(self, pos=None, vel=None, file=None):
         if file is not None:
             self.load(file)
         else:
             self.pos = pos
             self.vel = vel
             dim = len(self.pos)
-            self.force = [0.0]*dim
-    
+            self.force = [0.0] * dim
+
     def forward(self, dt):
         dim = len(self.pos)
-        for i in range(0,dim):
+        for i in range(0, dim):
             self.pos[i] += self.vel[i] * dt
 
     def accel(self, dt):
         dim = len(self.pos)
-        for i in range(0,dim):
+        for i in range(0, dim):
             self.vel[i] += self.force[i] * dt
 
     def resetforce(self):
         dim = len(self.pos)
-        self.force = [0.0]*dim
+        self.force = [0.0] * dim
 
-    def rescale(self,factor):
+    def rescale(self, factor):
         dim = len(self.pos)
-        for i in range(0,dim):
+        for i in range(0, dim):
             self.vel[i] *= factor
 
     def interact(self, target, cell):
@@ -64,64 +70,74 @@ class Particle:
         delta = [0.0] * dim
         force = [0.0] * dim
         ddsum = 0.0
-        for i in range(0,dim):
+        for i in range(0, dim):
             delta[i] = self.pos[i] - target.pos[i]
             if cell[i] != 0.0:
-                delta[i] -= round(delta[i] / cell[i])*cell[i]
+                delta[i] -= round(delta[i] / cell[i]) * cell[i]
             ddsum += delta[i]**2
-        pot = 4.0*(ddsum**-6 - ddsum**-3)
-        force0 = -48.0*ddsum**-7 + 24.0*ddsum**-4
+        pot = 4.0 * (ddsum**-6 - ddsum**-3)
+        force0 = -48.0 * ddsum**-7 + 24.0 * ddsum**-4
         virial = force0 * ddsum
-        for i in range(0,dim):
+        for i in range(0, dim):
             self.force[i] -= force0 * delta[i]
             target.force[i] += force0 * delta[i]
-        return (pot,virial)
-    
+        return (pot, virial)
+
     def kinetic(self):
         dim = len(self.pos)
         kin = 0.0
-        for i in range(0,dim):
+        for i in range(0, dim):
             kin += self.vel[i]**2
         return kin * 0.5
 
-    def randomize(self,kt):
-        v = 4.0*kt
+    def randomize(self, kt):
+        v = 4.0 * kt
         dim = len(self.pos)
-        for i in range(0,dim):
+        for i in range(0, dim):
             self.vel[i] = v * (ra.random() - 0.5)
 
     def draw(self, cell, gc, avgvel):
         pos = list(self.pos)
         dim = len(self.pos)
-        for i in range(0,dim):
+        for i in range(0, dim):
             if cell[i] != 0.0:
-                pos[i] -= floor(pos[i] / cell[i])*cell[i]
+                pos[i] -= floor(pos[i] / cell[i]) * cell[i]
         if dim < 3:
-            oval((pos[0]-0.5)*gc.zoom,(pos[1]-0.5)*gc.zoom, gc.zoom,gc.zoom)
-            line(pos[0]*gc.zoom,pos[1]*gc.zoom,(pos[0]+self.vel[0])*gc.zoom,(pos[1]+self.vel[1])*gc.zoom)
+            oval((pos[0] - 0.5) * gc.zoom, (pos[1] - 0.5)
+                 * gc.zoom, gc.zoom, gc.zoom)
+            line(
+                pos[0] * gc.zoom,
+                pos[1] * gc.zoom,
+                (pos[0] + self.vel[0]) * gc.zoom,
+                (pos[1] + self.vel[1]) * gc.zoom)
         else:
             vel = 0
             for v in self.vel:
                 vel += v**2
             vel = sqrt(vel)
-            sat = (pos[2] / cell[2])*0.5+0.5
+            sat = (pos[2] / cell[2]) * 0.5 + 0.5
             hue = 0.666 - 0.3 * vel / avgvel
             a = 0.5 / vel
             b = a + 1.0
-            fill(hue,1.0,sat, 0.8)
+            fill(hue, 1.0, sat, 0.8)
             if self.vel[2] >= 0.0:
-                oval((pos[0]-0.5)*gc.zoom,(pos[1]-0.5)*gc.zoom, gc.zoom,gc.zoom)
-            line( (pos[0]+self.vel[0]*a)*gc.zoom,(pos[1]+self.vel[1]*a)*gc.zoom,
-                  (pos[0]+self.vel[0]*b)*gc.zoom,(pos[1]+self.vel[1]*b)*gc.zoom)
+                oval((pos[0] - 0.5) * gc.zoom, (pos[1] - 0.5)
+                     * gc.zoom, gc.zoom, gc.zoom)
+            line((pos[0] + self.vel[0] * a) * gc.zoom,
+                 (pos[1] + self.vel[1] * a) * gc.zoom,
+                 (pos[0] + self.vel[0] * b) * gc.zoom,
+                 (pos[1] + self.vel[1] * b) * gc.zoom)
             if self.vel[2] < 0.0:
-                oval((pos[0]-0.5)*gc.zoom,(pos[1]-0.5)*gc.zoom, gc.zoom,gc.zoom)
+                oval((pos[0] - 0.5) * gc.zoom, (pos[1] - 0.5)
+                     * gc.zoom, gc.zoom, gc.zoom)
 
-    #serialize
+    # serialize
     def __str__(self):
-        s = serialize(self.pos) + serialize(self.vel) #+ serialize(self.force)
+        # + serialize(self.force)
+        s = serialize(self.pos) + serialize(self.vel)
         return s
-    
-    def load(self,file):
+
+    def load(self, file):
         s = file.readline()
         self.pos = unserialize(s)
         s = file.readline()
@@ -131,24 +147,23 @@ class Particle:
         s = file.readline()
         self.force = [0.0] * len(self.pos)
 
-    def save(self,file):
+    def save(self, file):
         file.write("%s\n" % self)
-    
 
 
 #System of particles ###################################################
 class System:
-    def __init__(self,cell=None,nballs=10,step=0,gc=None,
-                 input=None,logfile=sys.stdout,velfile=None,velint=0,
-                 kT=None ):
+    def __init__(self, cell=None, nballs=10, step=0, gc=None,
+                 input=None, logfile=sys.stdout, velfile=None, velint=0,
+                 kT=None):
         if input is not None:
             self.load(input)
         else:
-            self.lattice(cell,nballs)
+            self.lattice(cell, nballs)
             if kT is not None:
                 # ra.seed(1)
                 self.thermalize(kT)
-        #initialize force
+        # initialize force
         self.interact()
         self.step = step
         self.gc = gc
@@ -156,8 +171,8 @@ class System:
         self.velfile = velfile
         self.velinterval = velint
         self.kT = kT
-        
-    def lattice(self,cell,nballs):
+
+    def lattice(self, cell, nballs):
         self.balls = []
         self.cell = cell
         dim = len(cell)
@@ -168,13 +183,13 @@ class System:
         elif dim == 3:
             self.lattice3d(nballs)
 
-    def thermalize(self,kT):
+    def thermalize(self, kT):
         for b in self.balls:
             b.randomize(kT)
-        #Remove total translation
+        # Remove total translation
         dim = len(self.cell)
         N = len(self.balls)
-        for i in range(0,dim):
+        for i in range(0, dim):
             velsum = 0.0
             for b in self.balls:
                 velsum += b.vel[i]
@@ -182,111 +197,111 @@ class System:
             for b in self.balls:
                 b.vel[i] -= velsum
 
-    def rescale(self,factor):
+    def rescale(self, factor):
         for b in self.balls:
             b.rescale(factor)
 
-    def lattice1d(self,nballs):
+    def lattice1d(self, nballs):
         n = nballs
         x = 0.0
         while 0 < n:
-            self.balls += [Particle([x],[0.0])]
+            self.balls += [Particle([x], [0.0])]
             n -= 1
             x += 1.12
 
-    def lattice2d(self,nballs):
+    def lattice2d(self, nballs):
         n = nballs
-        nx = int(self.cell[0] /1.12)
-        ny = int(self.cell[1] / (1.12 * sqrt(3.0)/2))
-        for iy in range(0,ny):
-            for ix in range(0,nx):
+        nx = int(self.cell[0] / 1.12)
+        ny = int(self.cell[1] / (1.12 * sqrt(3.0) / 2))
+        for iy in range(0, ny):
+            for ix in range(0, nx):
                 x = ix * 1.12
-                y = iy * 1.12 * sqrt(3.0)/2 + 0.1
+                y = iy * 1.12 * sqrt(3.0) / 2 + 0.1
                 if iy % 2 != 0:
                     x += 1.12 / 2.0
-                self.balls += [Particle([x,y],[0.0,0.0])]
+                self.balls += [Particle([x, y], [0.0, 0.0])]
                 n -= 1
                 if n == 0:
                     break
-            if n==0:
+            if n == 0:
                 break
 
-    def lattice3d(self,nballs):
+    def lattice3d(self, nballs):
         n = nballs
-        nx = int(self.cell[0] /1.12)
-        ny = int(self.cell[1] / (1.12 * sqrt(3.0)/2))
-        nz = int(self.cell[2] / (1.12 * sqrt(6.0)/3.0))
-        for iz in range(0,nz):
-            for iy in range(0,ny):
-                for ix in range(0,nx):
+        nx = int(self.cell[0] / 1.12)
+        ny = int(self.cell[1] / (1.12 * sqrt(3.0) / 2))
+        nz = int(self.cell[2] / (1.12 * sqrt(6.0) / 3.0))
+        for iz in range(0, nz):
+            for iy in range(0, ny):
+                for ix in range(0, nx):
                     x = ix * 1.12
-                    y = iy * 1.12 * sqrt(3.0)/2 + 0.1
-                    z = iz * 1.12 * sqrt(6.0)/3 + 0.1
+                    y = iy * 1.12 * sqrt(3.0) / 2 + 0.1
+                    z = iz * 1.12 * sqrt(6.0) / 3 + 0.1
                     if iy % 2 != 0:
                         x += 1.12 / 2.0
                     if iz % 2 != 0:
                         x += 1.12 / 2.0
-                        y += 1.12 * sqrt(3.0)/2 * 2.0/3.0
-                    self.balls += [Particle([x,y,z],[0.0,0.0,0.0])]
+                        y += 1.12 * sqrt(3.0) / 2 * 2.0 / 3.0
+                    self.balls += [Particle([x, y, z], [0.0, 0.0, 0.0])]
                     n -= 1
-                    if n==0:
+                    if n == 0:
                         break
                 if n == 0:
                     break
-            if n==0:
+            if n == 0:
                 break
-
 
     def interact(self):
         N = len(self.balls)
         potsum = 0.0
         virsum = 0.0
-        for i in range(0,N):
-            for j in range(i+1,N):
-                (pot,vir) = self.balls[i].interact( self.balls[j], self.cell )
+        for i in range(0, N):
+            for j in range(i + 1, N):
+                (pot, vir) = self.balls[i].interact(self.balls[j], self.cell)
                 potsum += pot
                 virsum += vir
         self.pot = potsum
-        return (potsum,virsum)
+        return (potsum, virsum)
 
-    def OneStep(self,dt):
-        #Progress Momenta (half)
+    def OneStep(self, dt):
+        # Progress Momenta (half)
         for b in self.balls:
-            b.accel(dt/2.0)
-        #Progress Position
+            b.accel(dt / 2.0)
+        # Progress Position
         for b in self.balls:
             b.forward(dt)
             b.resetforce()
-        #Force
-        (pot,virsum) = self.interact()
-        #Progress Momenta (half)
+        # Force
+        (pot, virsum) = self.interact()
+        # Progress Momenta (half)
         for b in self.balls:
-            b.accel(dt/2.0)
-        #temperature scaling
+            b.accel(dt / 2.0)
+        # temperature scaling
         if self.kT is not None:
             kin = 0.0
             for b in self.balls:
                 kin += b.kinetic()
             dof = len(self.balls) * len(self.cell)
-            factor =   (self.kT * dof / 2.0)  / kin
-            factor = 1.0 - (1.0 - factor)* 0.001
+            factor = (self.kT * dof / 2.0) / kin
+            factor = 1.0 - (1.0 - factor) * 0.001
             self.rescale(factor)
-        #Data output
+        # Data output
         if self.logfile is not None:
             dim = len(self.cell)
             N = len(self.balls)
             kin = 0.0
             for b in self.balls:
                 kin += b.kinetic()
-            kT = 2.0 * kin / ( dim * N )
-            z = 1.0 - virsum / (dim * N * kT )
+            kT = 2.0 * kin / (dim * N)
+            z = 1.0 - virsum / (dim * N * kT)
             self.logfile.write("%s %s %s %s %s %s\n" %
-                               (self.step, kT, z, kin+pot, kin, pot))
-        if self.velfile is not None and self.step%self.velinterval == 0:
-            for i in range(0,N):
-                self.velfile.write("%s\n" % sqrt(2.0*self.balls[i].kinetic()))
+                               (self.step, kT, z, kin + pot, kin, pot))
+        if self.velfile is not None and self.step % self.velinterval == 0:
+            for i in range(0, N):
+                self.velfile.write("%s\n" %
+                                   sqrt(2.0 * self.balls[i].kinetic()))
         self.step += 1
-    
+
     def draw(self):
         if self.gc is not None:
             dim = len(self.cell)
@@ -297,31 +312,31 @@ class System:
                 tmp = list(self.balls)
                 tmp.sort(key=lambda x: -x.pos[2])
                 for b in tmp:
-                    b.draw(self.cell,self.gc,avgvel)
+                    b.draw(self.cell, self.gc, avgvel)
             else:
                 for b in self.balls:
-                    b.draw(self.cell,self.gc,0.0)
+                    b.draw(self.cell, self.gc, 0.0)
 
-    def load(self,file):
+    def load(self, file):
         self.balls = []
         s = file.readline()
         self.cell = unserialize(s)
         s = file.readline()
         x = unserialize(s)
         x = int(x[0])
-        for i in range(0,x):
+        for i in range(0, x):
             self.balls.append(Particle(file=file))
         s = file.readline()
 
-    #serialize
+    # serialize
     def __str__(self):
         s = serialize(self.cell)
         s += "%s\n" % len(self.balls)
-        for i in range(0,len(self.balls)):
-            s+= "%s\n" % self.balls[i]
+        for i in range(0, len(self.balls)):
+            s += "%s\n" % self.balls[i]
         return s
 
-    def save(self,file):
+    def save(self, file):
         file.write("%s\n" % self)
 
 
@@ -333,26 +348,30 @@ def setup():
     width = 4.5
     height = 4.5
     zoom = 100.0
-    size(width*zoom, height*zoom)
-    system=System(step=0, nballs=64 , cell=[width, height,height],
-                   gc=GC(zoom=zoom),logfile=sys.stdout, kT=None)
+    size(width * zoom, height * zoom)
+    system = System(step=0, nballs=64, cell=[width, height, height],
+                    gc=GC(zoom=zoom), logfile=sys.stdout, kT=None)
+
 
 def draw():
     global system
     colormode(HSB)
-    stroke(0,0,0)
-    fill(0,0,1)
-    #時間0.01だけアニメーションを進める。
+    stroke(0, 0, 0)
+    fill(0, 0, 1)
+    # 時間0.01だけアニメーションを進める。
     for i in range(10):
         system.OneStep(0.001)
     system.draw()
-    
+
 #for slient run #######################################################
-#コマンドライン引数は1番目がステップ数(省略不可)、2番目が出力ベース名、
-#継続データは標準入力。ただし、dimenが指定された場合は初期化。
+# コマンドライン引数は1番目がステップ数(省略不可)、2番目が出力ベース名、
+# 継続データは標準入力。ただし、dimenが指定された場合は初期化。
+
 
 def usage():
-    print("usage: %s [-a n|--atoms=n][-d t|--dt=t][-t x|--temp=x][-c x,y|--cell=x,y,z][-v i|--vel=i] steps outputbase" % sys.argv[0])
+    print(
+        "usage: %s [-a n|--atoms=n][-d t|--dt=t][-t x|--temp=x][-c x,y|--cell=x,y,z][-v i|--vel=i] steps outputbase" %
+        sys.argv[0])
     print("    -a n|--atoms=n        Specify number of atoms.")
     print("    -v i|--vel=i         Output velocity list every i steps.")
     print("    -d t|--dt=t          Step interval(default=0.01).")
@@ -362,10 +381,13 @@ def usage():
     print(" If they are not specified, last data *.lj2 will be read from stdin.")
     sys.exit(2)
 
+
 def main():
     #コマンドラインオプションの解析 ####################################
     args = sys.argv[1:len(sys.argv)]
-    optlist, args = getopt.getopt(args, 'v:d:t:c:a:', ['vel=','dt=','temp=','cell=','atoms='])
+    optlist, args = getopt.getopt(
+        args, 'v:d:t:c:a:', [
+            'vel=', 'dt=', 'temp=', 'cell=', 'atoms='])
     if len(args) < 2:
         usage()
     steps = int(args[0])
@@ -375,18 +397,18 @@ def main():
     natom = 0
     velinterval = 0
     deltatime = 0.01
-    for o,a in optlist:
-        if o in ("-t","--temp"):
+    for o, a in optlist:
+        if o in ("-t", "--temp"):
             temp = float(a)
-        if o in ("-a","--atoms"):
+        if o in ("-a", "--atoms"):
             natom = int(a)
-        if o in ("-v","--vel"):
+        if o in ("-v", "--vel"):
             velinterval = int(a)
-        if o in ("-d","--dt"):
+        if o in ("-d", "--dt"):
             deltatime = float(a)
-        if o in ("-c","--cell"):
+        if o in ("-c", "--cell"):
             c = a.split(",")
-            for i in range(0,len(c)):
+            for i in range(0, len(c)):
                 c[i] = float(c[i])
             cell = c
     #Initialize ########################################################
@@ -395,35 +417,35 @@ def main():
         velfilename = "%s.vel" % basename
         velfile = open(velfilename, "w")
     logfilename = "%s.log" % basename
-    logfile = open(logfilename,"w")
+    logfile = open(logfilename, "w")
     system = None
     if cell is None:
-        #cell is not defined; Continue from the last data.
+        # cell is not defined; Continue from the last data.
         if temp > 0.0:
-            system = System(input=sys.stdin,logfile=logfile,
-                        velfile=velfile,velint=velinterval,kT=temp)
-        else:    
-            system = System(input=sys.stdin,logfile=logfile,
-                        velfile=velfile,velint=velinterval)
+            system = System(input=sys.stdin, logfile=logfile,
+                            velfile=velfile, velint=velinterval, kT=temp)
+        else:
+            system = System(input=sys.stdin, logfile=logfile,
+                            velfile=velfile, velint=velinterval)
     else:
-        if natom==0:
+        if natom == 0:
             usage()
-        #Cell is defined. Start new run.
-        system = System(nballs=natom,cell=cell,gc=None,logfile=logfile,
-                        velfile=velfile,velint=velinterval,kT=temp)
+        # Cell is defined. Start new run.
+        system = System(nballs=natom, cell=cell, gc=None, logfile=logfile,
+                        velfile=velfile, velint=velinterval, kT=temp)
 
     #Main Loop #########################################################
-    for step in range(0,steps):
+    for step in range(0, steps):
         system.OneStep(deltatime)
 
     #Finish ############################################################
     outfilename = "%s.lj2" % basename
-    outfile = open(outfilename,"w")
+    outfile = open(outfilename, "w")
     system.save(outfile)
     outfile.close()
 
 
-#Uncomment one of them
-speed(10)  #for NodeBox
-animate(setup,draw) # for nodebox_wrapper3
+# Uncomment one of them
+speed(10)  # for NodeBox
+animate(setup, draw)  # for nodebox_wrapper3
 # main()     #for Commandline execution

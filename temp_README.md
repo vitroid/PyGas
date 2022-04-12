@@ -13,6 +13,8 @@ Install the following packages in advance. They are available via `pip` package 
 * Numpy
 * pygame
 
+`ffmpeg` is required to record the video.
+
 ## Files
 
 ### `harddisk.py`: Hard disks or hard spheres.

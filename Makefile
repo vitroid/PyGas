@@ -5,3 +5,6 @@ all: README.md
 	mv $@.1 $@
 makeenv:
 	cd ~/venvs; python3 -m venv pygame
+
+pep8:
+	autopep8 -r -a -a -i .

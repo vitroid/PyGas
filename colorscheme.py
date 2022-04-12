@@ -2,6 +2,7 @@
 class ColorScheme:
     pass
 
+
 class AbsoluteVelocity(ColorScheme):
     def __init__(self, max=5):
         self.max = max
@@ -9,7 +10,7 @@ class AbsoluteVelocity(ColorScheme):
     def getHSB(self, v):
         av = abs(v)
         hue = av / self.max
-        sat = (self.max-av) / (self.max / 3)
+        sat = (self.max - av) / (self.max / 3)
         bri = av / (self.max / 9)
         if hue > 1:
             hue = 1.0

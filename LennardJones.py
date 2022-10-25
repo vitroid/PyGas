@@ -2,14 +2,17 @@
 
 # lj2.py + numpy
 
-import logging
-from histogram import Hist
-import numpy as np
-from nodebox_wrapper import *
 import argparse as ap
-import sys
 import random as ra
+import sys
+from logging import DEBUG, INFO, WARNING, basicConfig, getLogger
 from math import *
+
+import numpy as np
+
+from histogram import Hist
+from nodebox_wrapper import *
+
 __version__ = "0.1"
 
 
@@ -160,7 +163,7 @@ def lattice1d(nballs):
 
 
 def lattice2d(nballs, cell):
-    logger = logging.getLogger()
+    logger = getLogger()
     n = nballs
     gap = 0.02
     ex = 1 + gap
@@ -187,6 +190,7 @@ def lattice2d(nballs, cell):
 
 
 def lattice3d(nballs, cell):
+    logger = getLogger()
     n = nballs
     gap = 0.02
     ex = 1 + gap
@@ -432,16 +436,16 @@ def setup():
     options = getoptions()
     # Logger
     if options.debug:
-        logging.basicConfig(level=logging.DEBUG,
+        basicConfig(level=DEBUG,
                             format="%(asctime)s %(levelname)s %(message)s")
     elif options.quiet:
-        logging.basicConfig(level=logging.WARN,
+        basicConfig(level=WARNING,
                             format="%(levelname)s %(message)s")
     else:
         # normal
-        logging.basicConfig(level=logging.INFO,
+        basicConfig(level=INFO,
                             format="%(levelname)s %(message)s")
-    logger = logging.getLogger()
+    logger = getLogger()
     logger.debug("Debug mode.")
 
     #Initialize ########################################################

@@ -6,14 +6,14 @@
 __version__ = "0.1"
 
 
-from math import *
+import argparse as ap
+import json
 import random as ra
 import sys
-from nodebox_wrapper import *
-import argparse as ap
-import time
-from histogram import Hist
+
 from colorscheme import AbsoluteVelocity
+from histogram import Hist
+from nodebox_wrapper import *
 
 # General list serializer
 
@@ -85,7 +85,7 @@ class HardDisk:
             x = ra.random() - 0.5
             vec.append(x)
             ss += x**2
-        s = sqrt(ss)
+        s = ss**0.5
         for i in range(0, dim):
             vec[i] *= v / s
         self.vel = vec
@@ -113,7 +113,7 @@ class HardDisk:
         if d < 0.0 or a == 0.0:
             dt = -1.0
         else:
-            dt = (-b - sqrt(d)) / a
+            dt = (-b - d**0.5) / a
         return dt
 
     # ball-to-ball reflection
@@ -139,7 +139,7 @@ class HardDisk:
         # reset the time accumulator
         self.flighttime = 0.0
         target.flighttime = 0.0
-        return (sqrt(vels), times, sqrt(velt), timet)
+        return (vels**0.5, times, velt**0.5, timet)
 
     # wallはax+by=cのabcからなるリスト
 
@@ -306,7 +306,7 @@ class System:
         dim = len(self.cell)
         N = len(self.balls)
         # 1粒子だけにエネルギーを与える。
-        self.balls[0].randomize(sqrt(dim * kT * float(N)))
+        self.balls[0].randomize((dim * kT * float(N))**0.5)
 
     def rescale(self, factor):
         for b in self.balls:
@@ -316,22 +316,24 @@ class System:
         n = nballs
         x = 0.1
         while 0 < n:
+            assert x < self.cell[0], "Too small cell."
             self.balls += [HardDisk([x], [0.0])]
             n -= 1
-            x += 1.12
+            x += 1.02
 
     def lattice2d(self, nballs):
         n = nballs
         x = 0.1
         y = 0.1
         while 0 < n:
+            assert y < self.cell[1], "Too small cell."
             self.balls += [HardDisk([x, y], [0.0, 0.0],
                                     colorscheme=self.colorscheme)]
             n -= 1
             x += 1.12
             if self.cell[0] < x:
                 x -= self.cell[0] - (1.12 / 2.0)
-                y += 1.12 * sqrt(3.0) / 2.0
+                y += 1.12 * 3.0**0.5 / 2.0
 
     def lattice3d(self, nballs):
         n = nballs
@@ -339,15 +341,16 @@ class System:
         y = 0.1
         z = 0.1
         while 0 < n:
+            assert z < self.cell[2], "Too small cell."
             self.balls += [HardDisk([x, y, z], [0.0, 0.0, 0.0])]
             n -= 1
-            x += 1.12
+            x += 1.02
             if self.cell[0] < x:
-                x -= self.cell[0] - (1.12 / 2.0)
-                y += 1.12 * sqrt(3.0) / 2.0
+                x -= self.cell[0] - (1.02 / 2.0)
+                y += 1.02 * 3.0**0.5 / 2.0
                 if self.cell[0] < y:
                     y = 0.1
-                    z += 1.12 * sqrt(3.0) / 2.0
+                    z += 1.02 * 3.0**0.5 / 2.0
 
     def OneCollision(self, deltat):
         dtmin = deltat
@@ -434,7 +437,7 @@ class System:
             if 2 < dim:
                 avgvel = 0.0
                 if self.kT > 0.0:
-                    avgvel = sqrt(dim * self.kT)
+                    avgvel = (dim * self.kT)**0.5
                 tmp = list(self.balls)
                 tmp.sort(key=lambda x: -x.pos[2])
                 for b in tmp:
@@ -447,7 +450,7 @@ class System:
                 canvasy = self.cell[1] * self.gc.zoom
                 if self.hist:
                     self.histx.draw(0, canvasy, canvasx, canvasy / 2)
-                    self.histx.draw(
+                    self.histy.draw(
                         canvasx,
                         canvasy,
                         canvasx / 2,
@@ -604,80 +607,90 @@ def draw():
     system.OneStep(options.dt)
     system.draw()
 
-#for slient run #########################################################
-# コマンドライン引数は1番目がステップ数(省略不可)、2番目が出力ベース名、
-# 継続データは標準入力。ただし、dimenが指定された場合は初期化。
+# #for slient run #########################################################
+# # コマンドライン引数は1番目がステップ数(省略不可)、2番目が出力ベース名、
+# # 継続データは標準入力。ただし、dimenが指定された場合は初期化。
 
 
-def main():
+# def main():
+#     #コマンドラインオプションの解析 ####################################
+#     args = sys.argv[1:len(sys.argv)]
+#     optlist, args = getopt.getopt(
+#         args, 'fd:t:c:a:', [
+#             'flight', 'dt=', 'temp=', 'cell=', 'atoms='])
+#     if len(args) < 2:
+#         usage()
+#     steps = int(args[0])
+#     basename = args[1]
+#     temp = 0.0
+#     cell = None
+#     natom = 0
+#     flight = False
+#     # 画面表示しないなら、Δtはできるだけ大きいほうが速い。
+#     deltatime = 1.0
+#     for o, a in optlist:
+#         if o in ("-t", "--temp"):
+#             temp = float(a)
+#         if o in ("-a", "--atoms"):
+#             natom = int(a)
+#         if o in ("-f", "--flight"):
+#             flight = True
+#         if o in ("-d", "--dt"):
+#             deltatime = float(a)
+#         if o in ("-c", "--cell"):
+#             cell = a.split(",")
+#             for i in range(0, len(cell)):
+#                 cell[i] = float(cell[i])
+#     #Initialize ########################################################
+#     velfile = None
+#     if flight:
+#         velfilename = "%s.fli" % basename
+#         velfile = open(velfilename, "w")
+#     logfilename = "%s.log" % basename
+#     logfile = open(logfilename, "w")
+#     system = None
+#     if cell is None:
+#         # cell is not defined; Continue from the last data.
+#         system = System(input=sys.stdin, logfile=logfile,
+#                         velfile=velfile)
+#     else:
+#         if natom == 0:
+#             usage()
+#         # Cell is defined. Start new run.
+#         system = System(nballs=natom, cell=cell, gc=None, logfile=logfile,
+#                         velfile=velfile, kT=temp)
+
+#     #Main Loop #########################################################
+#     for step in range(0, steps):
+#         system.OneStep(deltatime)
+
+#     #Finish ############################################################
+#     outfilename = "%s.hd2" % basename
+#     outfile = open(outfilename, "w")
+#     system.save(outfile)
+#     outfile.close()
+
+
+
+def start():
+    global options
     #コマンドラインオプションの解析 ####################################
-    args = sys.argv[1:len(sys.argv)]
-    optlist, args = getopt.getopt(
-        args, 'fd:t:c:a:', [
-            'flight', 'dt=', 'temp=', 'cell=', 'atoms='])
-    if len(args) < 2:
-        usage()
-    steps = int(args[0])
-    basename = args[1]
-    temp = 0.0
-    cell = None
-    natom = 0
-    flight = False
-    # 画面表示しないなら、Δtはできるだけ大きいほうが速い。
-    deltatime = 1.0
-    for o, a in optlist:
-        if o in ("-t", "--temp"):
-            temp = float(a)
-        if o in ("-a", "--atoms"):
-            natom = int(a)
-        if o in ("-f", "--flight"):
-            flight = True
-        if o in ("-d", "--dt"):
-            deltatime = float(a)
-        if o in ("-c", "--cell"):
-            cell = a.split(",")
-            for i in range(0, len(cell)):
-                cell[i] = float(cell[i])
-    #Initialize ########################################################
-    velfile = None
-    if flight:
-        velfilename = "%s.fli" % basename
-        velfile = open(velfilename, "w")
-    logfilename = "%s.log" % basename
-    logfile = open(logfilename, "w")
-    system = None
-    if cell is None:
-        # cell is not defined; Continue from the last data.
-        system = System(input=sys.stdin, logfile=logfile,
-                        velfile=velfile)
-    else:
-        if natom == 0:
-            usage()
-        # Cell is defined. Start new run.
-        system = System(nballs=natom, cell=cell, gc=None, logfile=logfile,
-                        velfile=velfile, kT=temp)
+    options = getoptions()
+    print(options)
 
-    #Main Loop #########################################################
-    for step in range(0, steps):
-        system.OneStep(deltatime)
-
-    #Finish ############################################################
-    outfilename = "%s.hd2" % basename
-    outfile = open(outfilename, "w")
-    system.save(outfile)
-    outfile.close()
+    # Uncomment one of them
+    speed(30)  # for NodeBox
+    # main()     #for Commandline execution
 
 
-#コマンドラインオプションの解析 ####################################
-options = getoptions()
-print(options)
-
-# Uncomment one of them
-speed(30)  # for NodeBox
-# main()     #for Commandline execution
+    # Animate
+    animate(setup, draw, video=options.frames)
+    # or record animation 1800 frames
+    # animate(setup,draw,video=1800)
 
 
-# Animate
-animate(setup, draw, video=options.frames)
-# or record animation 1800 frames
-# animate(setup,draw,video=1800)
+# import cProfile
+
+if __name__ == "__main__":
+    # cProfile.run('start()')
+    start()
